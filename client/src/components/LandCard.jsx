@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import LandImage from './LandImage';
 
 const LandCard = ({ land, user, onBuy, onToggleStatus }) => {
     const navigate = useNavigate();
@@ -15,11 +16,10 @@ const LandCard = ({ land, user, onBuy, onToggleStatus }) => {
             onClick={handleCardClick}
             className="card group h-full flex flex-col overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/10"
         >
-            {land.photoUrl && (
-                <div className="h-52 w-full mb-5 rounded-xl overflow-hidden relative">
-                    <img
-                        src={`http://localhost:3000${land.photoUrl}`}
-                        alt="Land"
+            <div className="h-52 w-full mb-5 rounded-xl overflow-hidden relative">
+                    <LandImage
+                        photoUrl={land.photoUrl}
+                        alt={`Land at ${land.location}`}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-300"></div>
@@ -32,8 +32,7 @@ const LandCard = ({ land, user, onBuy, onToggleStatus }) => {
                             {land.isForSale ? 'For Sale' : 'Not Listed'}
                         </span>
                     </div>
-                </div>
-            )}
+            </div>
 
             <div className="flex-1 flex flex-col">
                 <div className="mb-4">

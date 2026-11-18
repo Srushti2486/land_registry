@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 const Auth = ({ onLogin, onClose }) => {
     const [isRegistering, setIsRegistering] = useState(false);
@@ -13,7 +14,7 @@ const Auth = ({ onLogin, onClose }) => {
         e.preventDefault();
         setError('');
         const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
-        const url = `http://localhost:3000${endpoint}`;
+        const url = `${API_BASE_URL}${endpoint}`;
 
         try {
             const response = await fetch(url, {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const UserProfile = () => {
     const { id } = useParams();
@@ -10,7 +11,7 @@ const UserProfile = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const res = await fetch(`http://localhost:3000/api/users/${id}/profile`);
+                const res = await fetch(`${API_BASE_URL}/api/users/${id}/profile`);
                 if (res.ok) {
                     const data = await res.json();
                     setProfile(data);

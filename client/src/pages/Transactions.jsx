@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PaymentModal from '../components/PaymentModal';
+import { API_BASE_URL } from '../config';
 
 const Transactions = ({ user }) => {
     const [incomingRequests, setIncomingRequests] = useState([]);
@@ -16,11 +17,11 @@ const Transactions = ({ user }) => {
 
     const fetchRequests = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/requests/${user.id}`);
+            const res = await fetch(`${API_BASE_URL}/api/requests/${user.id}`);
             if (res.ok) {
                 setIncomingRequests(await res.json());
             }
-            const res2 = await fetch(`http://localhost:3000/api/buyer-requests/${user.id}`);
+            const res2 = await fetch(`${API_BASE_URL}/api/buyer-requests/${user.id}`);
             if (res2.ok) {
                 setOutgoingRequests(await res2.json());
             }
@@ -31,7 +32,7 @@ const Transactions = ({ user }) => {
 
     const handleApprove = async (requestId) => {
         try {
-            const res = await fetch('http://localhost:3000/api/lands/approve', {
+            const res = await fetch(`${API_BASE_URL}/api/lands/approve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId }),
@@ -55,7 +56,7 @@ const Transactions = ({ user }) => {
         if (!selectedRequest) return;
 
         try {
-            const res = await fetch('http://localhost:3000/api/lands/pay', {
+            const res = await fetch(`${API_BASE_URL}/api/lands/pay`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId: selectedRequest.id }),

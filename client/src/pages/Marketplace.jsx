@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import LandCard from '../components/LandCard';
+import { API_BASE_URL } from '../config';
 
 const Marketplace = ({ user }) => {
     const [lands, setLands] = useState([]);
@@ -13,7 +14,7 @@ const Marketplace = ({ user }) => {
 
     const fetchLands = async () => {
         try {
-            const res = await fetch('http://localhost:3000/api/lands');
+            const res = await fetch(`${API_BASE_URL}/api/lands`);
             const data = await res.json();
             setLands(data);
         } catch (err) {
@@ -27,7 +28,7 @@ const Marketplace = ({ user }) => {
             return;
         }
         try {
-            const res = await fetch('http://localhost:3000/api/lands/request', {
+            const res = await fetch(`${API_BASE_URL}/api/lands/request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ landId, buyerId: user.id }),
@@ -45,7 +46,7 @@ const Marketplace = ({ user }) => {
 
     const handleToggleStatus = async (landId, isForSale) => {
         try {
-            const res = await fetch(`http://localhost:3000/api/lands/${landId}/status`, {
+            const res = await fetch(`${API_BASE_URL}/api/lands/${landId}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isForSale }),

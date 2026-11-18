@@ -1,2 +1,1 @@
-// REPLACE WITH YOUR ACTUAL GOOGLE CLIENT ID
-export const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';

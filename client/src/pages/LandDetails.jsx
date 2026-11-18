@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
+import LandImage from '../components/LandImage';
 
 const LandDetails = ({ user }) => {
     const { id } = useParams();
@@ -13,7 +15,7 @@ const LandDetails = ({ user }) => {
 
     const fetchLandDetails = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/lands/${id}`);
+            const res = await fetch(`${API_BASE_URL}/api/lands/${id}`);
             if (res.ok) {
                 const data = await res.json();
                 setLand(data);
@@ -32,7 +34,7 @@ const LandDetails = ({ user }) => {
             return;
         }
         try {
-            const res = await fetch('http://localhost:3000/api/lands/request', {
+            const res = await fetch(`${API_BASE_URL}/api/lands/request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ landId: land.id, buyerId: user.id }),
@@ -50,7 +52,7 @@ const LandDetails = ({ user }) => {
 
     const handleToggleStatus = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/lands/${land.id}/status`, {
+            const res = await fetch(`${API_BASE_URL}/api/lands/${land.id}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isForSale: !land.isForSale }),
@@ -84,17 +86,11 @@ const LandDetails = ({ user }) => {
             <div className="bg-gray-800 rounded-lg overflow-hidden shadow-xl grid grid-cols-1 lg:grid-cols-2">
                 {/* Image Section */}
                 <div className="h-64 lg:h-auto relative">
-                    {land.photoUrl ? (
-                        <img
-                            src={`http://localhost:3000${land.photoUrl}`}
-                            alt="Land"
-                            className="w-full h-full object-cover"
-                        />
-                    ) : (
-                        <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
-                            No Image Available
-                        </div>
-                    )}
+                    <LandImage
+                        photoUrl={land.photoUrl}
+                        alt={`Land at ${land.location}`}
+                        className="w-full h-full object-cover"
+                    />
                     <div className="absolute top-4 left-4">
                         <span className={`px-3 py-1 rounded text-sm font-bold shadow-md ${land.isForSale
                             ? 'bg-green-500 text-white'
@@ -142,7 +138,7 @@ const LandDetails = ({ user }) => {
                         <div className="mb-8">
                             <h3 className="text-xl font-bold text-white mb-4">Documents</h3>
                             <a
-                                href={`http://localhost:3000${land.documentUrl}`}
+                                href={`${API_BASE_URL}${land.documentUrl}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-400 hover:underline"

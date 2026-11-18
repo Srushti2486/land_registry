@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const BUNDLED_LAND_PICS_DIR = path.resolve(__dirname, '..', '..', 'land_pics');
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -10,6 +11,30 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 class IPFSService {
+    /** Restore bundled photos into the local CID-named upload store. */
+    restoreBundledLandPhotos() {
+        if (!fs.existsSync(BUNDLED_LAND_PICS_DIR)) return 0;
+
+        let restored = 0;
+        for (const entry of fs.readdirSync(BUNDLED_LAND_PICS_DIR, { withFileTypes: true })) {
+            if (!entry.isFile()) continue;
+
+            const sourcePath = path.join(BUNDLED_LAND_PICS_DIR, entry.name);
+            const buffer = fs.readFileSync(sourcePath);
+            const hex = crypto.createHash('sha256').update(buffer).digest('hex');
+            const cid = 'Qm' + Buffer.from(hex).toString('base64').substring(0, 44).replace(/\//g, 'x').replace(/\+/g, 'y');
+            const filename = `${cid}${path.extname(entry.name) || '.dat'}`;
+            const destinationPath = path.join(UPLOAD_DIR, filename);
+
+            if (!fs.existsSync(destinationPath)) {
+                fs.copyFileSync(sourcePath, destinationPath);
+                restored += 1;
+            }
+        }
+
+        return restored;
+    }
+
     /**
      * Simulates uploading a file to IPFS.
      * Calculates a file hash, generates a "CID", and saves the file with that CID.

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -11,10 +12,15 @@ const smartContractService = require('./smartContractService');
 const bcrypt = require('bcryptjs');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 5000;
 
 app.get('/', (req, res) => {
-    res.send('Land Registry API is running. Please access the frontend at http://localhost:5173');
+    res.json({
+        service: 'Land Registry API',
+        frontend: 'http://localhost:5173',
+        evmRpc: 'http://127.0.0.1:8545',
+        rpcNote: 'This endpoint is not a JSON-RPC endpoint. Send JSON-RPC requests directly to evmRpc.'
+    });
 });
 
 
@@ -25,7 +31,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Configure Multer
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadDir = 'uploads';
+        const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir);
         }
@@ -57,6 +63,11 @@ async function init() {
             }
         }
         console.log('Database schema initialized.');
+
+        const restoredPhotos = ipfsService.restoreBundledLandPhotos();
+        if (restoredPhotos > 0) {
+            console.log(`Restored ${restoredPhotos} bundled land photo(s) to the uploads directory.`);
+        }
 
         // Migration: Add phoneNumber if not exists (for existing DBs)
         try {
@@ -310,7 +321,7 @@ app.post('/api/lands/request', async (req, res) => {
         const land = lands[0];
 
         // INTEGRITY CHECK
-        const integrityReport = blockchain.verifyLandIntegrity(land.id, land);
+        const integrityReport = await blockchain.verifyLandIntegrity(land.id, land);
         if (integrityReport && integrityReport.isTampered) {
             return res.status(403).json({ message: 'SECURITY ALERT: Land record is compromised/tampered. Transactions are blocked.' });
         }
@@ -419,7 +430,7 @@ app.post('/api/lands/approve', async (req, res) => {
         if (lands.length === 0) return res.status(404).json({ message: 'Land not found' });
 
         // INTEGRITY CHECK
-        const integrityReport = blockchain.verifyLandIntegrity(lands[0].id, lands[0]);
+        const integrityReport = await blockchain.verifyLandIntegrity(lands[0].id, lands[0]);
         if (integrityReport && integrityReport.isTampered) {
             return res.status(403).json({ message: 'SECURITY ALERT: Land record is compromised/tampered. Transactions are blocked.' });
         }
@@ -447,8 +458,8 @@ app.post('/api/lands/pay', async (req, res) => {
         if (lands.length === 0) return res.status(404).json({ message: 'Land not found' });
         const land = lands[0];
 
-        // INTEGRITY CHECK
-        const integrityReport = blockchain.verifyLandIntegrity(land.id, land);
+        // INTEGRITY CHECK  ← BUG FIX: was missing 'await', making check always pass
+        const integrityReport = await blockchain.verifyLandIntegrity(land.id, land);
         if (integrityReport && integrityReport.isTampered) {
             return res.status(403).json({ message: 'SECURITY ALERT: Land record is compromised/tampered. Payment blocked.' });
         }
@@ -592,7 +603,7 @@ app.get('/api/blockchain/integrity', async (req, res) => {
         const reports = [];
 
         for (const land of landsToCheck) {
-            const report = blockchain.verifyLandIntegrity(land.id, land);
+            const report = await blockchain.verifyLandIntegrity(land.id, land);
             if (report && report.isTampered) {
                 // Fetch land location for better UI
                 report.location = land.location;
@@ -619,10 +630,9 @@ app.get('/api/blockchain/integrity', async (req, res) => {
 });
 
 // Revert Tampered Land (Restore from Blockchain)
-app.post('/api/lands/revert', async (req, res) => {
-    const { landId } = req.body;
+app.post('/api/lands/revert', async (req, res) => {    const { landId } = req.body;
     try {
-        const correctState = blockchain.getLandStateFromChain(landId);
+        const correctState = await blockchain.getLandStateFromChain(landId);
         if (!correctState) {
             return res.status(404).json({ message: 'No valid blockchain history found for this land.' });
         }
@@ -639,7 +649,26 @@ app.post('/api/lands/revert', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
+// --- EVM Health & Status Route ---
+app.get('/api/evm/status', async (req, res) => {
+    try {
+        const status = await smartContractService.getStatus();
+        res.json({
+            evmConnected: status.evmConnected,
+            rpcUrl: status.rpcUrl,
+            chainId: status.chainId,
+            currentBlock: status.currentBlock,
+            contractAddress: status.contractAddress,
+            jsLedgerBlocks: blockchain.chain.length,
+            mode: status.evmConnected
+                ? 'EVM + JS-Ledger (dual-layer)'
+                : 'JS-Ledger simulation only'
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
+app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const ProfilePage = ({ user, onUpdateUser }) => {
     const [formData, setFormData] = useState({
@@ -21,7 +22,7 @@ const ProfilePage = ({ user, onUpdateUser }) => {
         setMessage('');
         setError('');
         try {
-            const res = await fetch(`http://localhost:3000/api/users/${user.id}`, {
+            const res = await fetch(`${API_BASE_URL}/api/users/${user.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...formData, type: user.type }),

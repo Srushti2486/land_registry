@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const RegisterLand = ({ user }) => {
     const [formData, setFormData] = useState({
@@ -36,7 +37,7 @@ const RegisterLand = ({ user }) => {
         if (files.photo) data.append('photo', files.photo);
 
         try {
-            const res = await fetch('http://localhost:3000/api/lands', {
+            const res = await fetch(`${API_BASE_URL}/api/lands`, {
                 method: 'POST',
                 body: data, // No Content-Type header, let browser set it with boundary
             });

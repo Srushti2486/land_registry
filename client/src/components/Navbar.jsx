@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const Navbar = ({ user, onLogout }) => {
     const location = useLocation();
@@ -22,12 +23,12 @@ const Navbar = ({ user, onLogout }) => {
     const fetchNotifications = async () => {
         try {
             // Fetch seller requests (PENDING)
-            const sellerRes = await fetch(`http://localhost:3000/api/requests/${user.id}`);
+            const sellerRes = await fetch(`${API_BASE_URL}/api/requests/${user.id}`);
             const sellerData = await sellerRes.json();
             const pendingSellerRequests = Array.isArray(sellerData) ? sellerData.filter(r => r.status === 'PENDING').length : 0;
 
             // Fetch buyer requests (WAITING_PAYMENT)
-            const buyerRes = await fetch(`http://localhost:3000/api/buyer-requests/${user.id}`);
+            const buyerRes = await fetch(`${API_BASE_URL}/api/buyer-requests/${user.id}`);
             const buyerData = await buyerRes.json();
             const pendingBuyerRequests = Array.isArray(buyerData) ? buyerData.filter(r => r.status === 'WAITING_PAYMENT').length : 0;
 

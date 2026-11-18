@@ -1,22 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 const BlockchainExplorer = ({ user }) => {
     const [data, setData] = useState([]);
     const [integrityReports, setIntegrityReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [evmStatus, setEvmStatus] = useState(null);
 
     useEffect(() => {
         fetchBlockchainData();
         fetchIntegrityData();
+        fetchEvmStatus();
     }, [user]);
+
+    const fetchEvmStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/evm/status`);
+            if (!response.ok) throw new Error('Unable to read EVM status');
+            setEvmStatus(await response.json());
+        } catch (err) {
+            setEvmStatus({ evmConnected: false, error: err.message });
+        }
+    };
 
     const fetchIntegrityData = async () => {
         try {
             // Only run integrity check if finding global data or if user owns land (for now just run it)
             if (!user) return;
 
-            const res = await fetch(`http://localhost:3000/api/blockchain/integrity?userId=${user.id}`);
+            const res = await fetch(`${API_BASE_URL}/api/blockchain/integrity?userId=${user.id}`);
             if (res.ok) {
                 const result = await res.json();
                 // Filter for user if needed, but for "Explorer" show all
@@ -29,7 +42,7 @@ const BlockchainExplorer = ({ user }) => {
 
     const fetchBlockchainData = async () => {
         try {
-            let url = 'http://localhost:3000/api/blockchain';
+            let url = `${API_BASE_URL}/api/blockchain`;
             if (user) {
                 url += `?userId=${user.id}`;
             }
@@ -55,12 +68,40 @@ const BlockchainExplorer = ({ user }) => {
                     {user ? 'My Land History' : 'Blockchain Explorer'}
                 </h1>
                 <button
-                    onClick={fetchBlockchainData}
+                    onClick={() => {
+                        fetchBlockchainData();
+                        fetchIntegrityData();
+                        fetchEvmStatus();
+                    }}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                 >
                     Refresh
                 </button>
             </div>
+
+            <section className="mb-8 rounded-lg border border-slate-700 bg-slate-800 p-5" aria-label="Local EVM status">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-white">Local EVM node</h2>
+                    <span className={`rounded-full px-3 py-1 text-sm ${evmStatus?.evmConnected
+                        ? 'bg-green-500/20 text-green-300'
+                        : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                        {evmStatus?.evmConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div><p className="text-slate-400">JSON-RPC endpoint</p><p className="break-all font-mono text-white">{evmStatus?.rpcUrl || 'Not configured'}</p></div>
+                    <div><p className="text-slate-400">Chain ID</p><p className="text-white">{evmStatus?.chainId || '—'}</p></div>
+                    <div><p className="text-slate-400">Latest EVM block</p><p className="text-white">{evmStatus?.currentBlock ?? '—'}</p></div>
+                    <div><p className="text-slate-400">LandRegistry contract</p><p className="break-all font-mono text-white">{evmStatus?.contractAddress || 'Not deployed'}</p></div>
+                </div>
+                <p className="mt-4 text-xs leading-relaxed text-slate-400">
+                    Contract state is held by the local Hardhat EVM node. This development node is in-memory and resets when it stops.
+                    The separate JavaScript audit ledger is stored in the MySQL <span className="font-mono">blocks</span> table;
+                    land photos/documents are files in the server uploads directory, not EVM storage.
+                </p>
+                {evmStatus?.error && <p className="mt-2 text-sm text-amber-300">{evmStatus.error}</p>}
+            </section>
 
             {integrityReports.length > 0 && (
                 <div className="mb-8 space-y-4">
@@ -90,7 +131,7 @@ const BlockchainExplorer = ({ user }) => {
                                 onClick={async () => {
                                     if (!confirm("Are you sure you want to overwrite the database record with the blockchain data? This cannot be undone.")) return;
                                     try {
-                                        const res = await fetch('http://localhost:3000/api/lands/revert', {
+                                        const res = await fetch(`${API_BASE_URL}/api/lands/revert`, {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ landId: report.landId })

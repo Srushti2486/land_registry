@@ -77,9 +77,9 @@ class Blockchain {
         return true;
     }
 
-    // --- Simulation Methods to match ethereum.js interface ---
+    // --- EVM & Local Ledger Integration Methods ---
 
-    async registerLandOnChain(landId, location, area, price, ownerId) {
+    async registerLandOnChain(landId, location, area, price, ownerId, evmTxHash = null) {
         const data = {
             type: 'Registration',
             landId: landId,
@@ -87,14 +87,15 @@ class Blockchain {
             area: area,
             price: price,
             ownerId: ownerId,
+            evmTxHash: evmTxHash,
             timestamp: Date.now()
         };
         const block = await this.addBlock(data);
-        console.log(`[Simulation] Land registered on chain: Block #${block.index} Hash: ${block.hash}`);
+        console.log(`[Ledger] Land registered: Block #${block.index} Hash: ${block.hash} EVM Tx: ${evmTxHash || 'N/A'}`);
         return block.hash;
     }
 
-    async transferLandOnChain(landId, fromId, toId, price, location) {
+    async transferLandOnChain(landId, fromId, toId, price, location, evmTxHash = null) {
         const data = {
             type: 'Transfer',
             landId: landId,
@@ -102,41 +103,37 @@ class Blockchain {
             to: toId,
             price: price,
             location: location,
+            evmTxHash: evmTxHash,
             timestamp: Date.now()
         };
         const block = await this.addBlock(data);
-        console.log(`[Simulation] Land transferred on chain: Block #${block.index} Hash: ${block.hash}`);
-        return { txHash: block.hash, newOwner: toId };
+        console.log(`[Ledger] Land transferred: Block #${block.index} Hash: ${block.hash} EVM Tx: ${evmTxHash || 'N/A'}`);
+        return { txHash: block.hash, evmTxHash, newOwner: toId };
     }
 
     async getBlockchainData() {
-        // Return the chain data formatted for the frontend
-        // The frontend expects: { number, hash, timestamp, transactions: [...] }
-        // Our 'data' is the transaction.
         return this.chain.map(block => ({
             number: block.index,
             hash: block.hash,
             timestamp: new Date(block.timestamp).toLocaleString(),
             transactions: block.index === 0 ? [] : [{
-                hash: block.hash, // Use block hash as tx hash for simplicity
+                hash: block.data?.evmTxHash || block.hash,
                 from: 'System',
                 to: 'System',
                 value: '0',
                 timestamp: new Date(block.timestamp).toLocaleString(),
                 details: block.data
             }]
-        })).reverse(); // Show newest first
+        })).reverse();
     }
 
     async getUserEvents(landIds, userId) {
-        // Filter blocks where data.landId is in landIds
         const events = [];
         for (const block of this.chain) {
-            if (block.index === 0) continue; // Skip genesis
+            if (block.index === 0) continue;
 
             const data = block.data;
-            if (data && landIds.includes(data.landId)) {
-                // Strict filtering for "related to user only"
+            if (data && (landIds.length === 0 || landIds.includes(data.landId))) {
                 if (userId) {
                     const isRegistration = data.type === 'Registration' && data.ownerId === userId;
                     const isTransfer = data.type === 'Transfer' && (data.from === userId || data.to === userId);
@@ -145,9 +142,9 @@ class Blockchain {
 
                 events.push({
                     type: data.type,
-                    landIdHash: data.landId, // Use actual ID
+                    landIdHash: data.landId,
                     blockNumber: block.index,
-                    transactionHash: block.hash,
+                    transactionHash: data.evmTxHash || block.hash,
                     timestamp: new Date(block.timestamp).toLocaleString(),
                     details: data.type === 'Registration' ? {
                         location: data.location,
@@ -156,7 +153,7 @@ class Blockchain {
                         ownerId: data.ownerId
                     } : {
                         oldOwner: data.from || 'Unknown',
-                        newOwner: data.to || data.newOwner, // Handle old format
+                        newOwner: data.to || data.newOwner,
                         price: data.price || '0',
                         location: data.location || 'Unknown'
                     }
@@ -166,10 +163,27 @@ class Blockchain {
         return events.sort((a, b) => b.blockNumber - a.blockNumber);
     }
 
-    verifyLandIntegrity(landId, currentDbRecord) {
-        // 1. Reconstruct state from chain
-        let expectedState = null;
+    async getLandStateFromChain(landId) {
+        const smartContractService = require('./smartContractService');
 
+        // 1. Try querying real EVM Smart Contract state directly via the improved helper
+        try {
+            const evmState = await smartContractService.getLandFromEVM(landId);
+            if (evmState) {
+                return {
+                    ownerId: evmState.ownerId,
+                    price: Number(evmState.price),
+                    location: evmState.location,
+                    area: Number(evmState.area),
+                    isEVMVerified: true
+                };
+            }
+        } catch (err) {
+            console.warn('[Blockchain] EVM getLand failed, falling back to JS ledger:', err.message);
+        }
+
+        // 2. Fallback: replay the local JS-ledger blocks to reconstruct state
+        let expectedState = null;
         for (const block of this.chain) {
             const data = block.data;
             if (!data) continue;
@@ -177,17 +191,36 @@ class Blockchain {
             if (data.type === 'Registration' && data.landId === landId) {
                 expectedState = {
                     ownerId: data.ownerId,
-                    price: data.price
+                    price: Number(data.price),
+                    isEVMVerified: false
                 };
             } else if (data.type === 'Transfer' && data.landId === landId) {
                 if (expectedState) {
                     expectedState.ownerId = data.to;
-                    expectedState.price = data.price;
+                    expectedState.price = Number(data.price);
                 }
             }
         }
+        return expectedState;
+    }
 
-        if (!expectedState) return null; // Land not on chain (or genesis only)
+    async verifyLandIntegrity(landId, currentDbRecord) {
+        const expectedState = await this.getLandStateFromChain(landId);
+
+        if (!expectedState) {
+            // Land ID does not exist on EVM Blockchain or local chain ledger!
+            return {
+                landId,
+                isTampered: true,
+                discrepancies: [
+                    {
+                        field: 'landId',
+                        dbValue: landId,
+                        chainValue: 'Unregistered / Fake Land (No EVM Smart Contract record)'
+                    }
+                ]
+            };
+        }
 
         const discrepancies = [];
 
@@ -220,9 +253,8 @@ class Blockchain {
         return { landId, isTampered: false };
     }
 
-
     getLandsOwnedBy(userId) {
-        const ownership = {}; // landId -> ownerId
+        const ownership = {};
 
         for (const block of this.chain) {
             const data = block.data;
@@ -235,30 +267,7 @@ class Blockchain {
             }
         }
 
-        // Return land IDs where userId is the current owner
         return Object.keys(ownership).filter(landId => ownership[landId] === userId);
-    }
-
-    getLandStateFromChain(landId) {
-        let expectedState = null;
-
-        for (const block of this.chain) {
-            const data = block.data;
-            if (!data) continue;
-
-            if (data.type === 'Registration' && data.landId === landId) {
-                expectedState = {
-                    ownerId: data.ownerId,
-                    price: data.price
-                };
-            } else if (data.type === 'Transfer' && data.landId === landId) {
-                if (expectedState) {
-                    expectedState.ownerId = data.to;
-                    expectedState.price = data.price;
-                }
-            }
-        }
-        return expectedState;
     }
 }
 
